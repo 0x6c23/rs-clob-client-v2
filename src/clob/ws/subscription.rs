@@ -193,6 +193,24 @@ impl SubscriptionManager {
         }
     }
 
+    /// Subscribes to public market data channel for specific assets,
+    /// by incrementing the refcount for each asset and sending a subscription request.
+    /// Does not work without calling `subscribe_market` first.
+    pub fn add_market_assets(&self, asset_ids: Vec<U256>) -> Result<()> {
+        // Update refcounts
+        for id in &asset_ids {
+            self.subscribed_assets
+                .entry(*id)
+                .and_modify(|c| *c += 1)
+                .or_insert(1);
+        }
+
+        // Tell server to send these assets
+        let request = SubscriptionRequest::market(asset_ids);
+        self.connection.send(&request)?;
+        Ok(())
+    }
+
     /// Subscribe to public market data channel.
     ///
     /// This will fail if `asset_ids` is empty.
@@ -282,7 +300,7 @@ impl SubscriptionManager {
 
         // Create filtered stream with its own receiver
         let mut rx = self.connection.subscribe();
-        let asset_ids_set: HashSet<U256> = asset_ids.into_iter().collect();
+        let subscribed = self.subscribed_assets.clone();
 
         Ok(try_stream! {
             loop {
@@ -290,21 +308,21 @@ impl SubscriptionManager {
                     Ok(msg) => {
                         // Filter messages by asset_id
                         let should_yield = match &msg {
-                            WsMessage::Book(book) => asset_ids_set.contains(&book.asset_id),
+                            WsMessage::Book(book) => subscribed.contains_key(&book.asset_id),
                             WsMessage::PriceChange(price) => {
                                 price
                                     .price_changes
                                     .iter()
-                                    .any(|pc| asset_ids_set.contains(&pc.asset_id))
+                                    .any(|pc| subscribed.contains_key(&pc.asset_id))
                             },
-                            WsMessage::LastTradePrice(ltp) => asset_ids_set.contains(&ltp.asset_id),
-                            WsMessage::TickSizeChange(tsc) => asset_ids_set.contains(&tsc.asset_id),
-                            WsMessage::BestBidAsk(bba) => asset_ids_set.contains(&bba.asset_id),
+                            WsMessage::LastTradePrice(ltp) => subscribed.contains_key(&ltp.asset_id),
+                            WsMessage::TickSizeChange(tsc) => subscribed.contains_key(&tsc.asset_id),
+                            WsMessage::BestBidAsk(bba) => subscribed.contains_key(&bba.asset_id),
                             WsMessage::NewMarket(nm) => {
-                                nm.asset_ids.iter().any(|id| asset_ids_set.contains(id))
+                                nm.asset_ids.iter().any(|id| subscribed.contains_key(id))
                             },
                             WsMessage::MarketResolved(mr) => {
-                                mr.asset_ids.iter().any(|id| asset_ids_set.contains(id))
+                                mr.asset_ids.iter().any(|id| subscribed.contains_key(id))
                             },
                             _ => false,
                         };

@@ -225,6 +225,28 @@ impl<S: State> Client<S> {
         }))
     }
 
+    /// Subscribes to public market data channel for specific assets,
+    /// by incrementing the refcount for each asset and sending a subscription request.
+    /// Does not work without calling `subscribe_market` first.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_ids` - List of asset/token IDs to monitor
+    pub fn add_market_assets(&self, asset_ids: Vec<U256>) -> Result<()> {
+        let resources = self.inner.get_or_create_channel(ChannelType::Market)?;
+        resources.subscriptions.add_market_assets(asset_ids)
+    }
+
+    /// Unsubscribe from market data for specific assets.
+    ///
+    /// This decrements the reference count for each asset. Only sends an unsubscribe
+    /// request to the server when the reference count reaches zero (no other streams
+    /// are using that asset).
+    pub fn unsubscribe_market(&self, asset_ids: &[U256]) -> Result<()> {
+        let resources = self.inner.get_or_create_channel(ChannelType::Market)?;
+        resources.subscriptions.unsubscribe_market(asset_ids)
+    }
+
     /// Subscribes to real-time tick size change events for specified assets.
     ///
     /// Returns a stream of tick size change when the backend adjusts the minimum
