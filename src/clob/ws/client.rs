@@ -225,6 +225,22 @@ impl<S: State> Client<S> {
         }))
     }
 
+    pub fn subscribe_market_all(
+        &self,
+        asset_ids: Vec<U256>,
+    ) -> Result<impl Stream<Item = Result<WsMessage>>> {
+        let resources = self.inner.get_or_create_channel(ChannelType::Market)?;
+        let stream = resources.subscriptions.subscribe_market(asset_ids)?;
+        Ok(stream.filter_map(|msg_result| async move {
+            match msg_result {
+                Ok(msg @ WsMessage::PriceChange(_)) => Some(Ok(msg)),
+                Ok(msg @ WsMessage::Book(_)) => Some(Ok(msg)),
+                Err(e) => Some(Err(e)),
+                _ => None,
+            }
+        }))
+    }
+
     /// Subscribes to public market data channel for specific assets,
     /// by incrementing the refcount for each asset and sending a subscription request.
     /// Does not work without calling `subscribe_market` first.
