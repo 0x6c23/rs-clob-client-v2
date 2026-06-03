@@ -77,9 +77,9 @@ pub struct SubscriptionManager {
     active_subs: DashMap<String, SubscriptionInfo>,
     interest: Arc<InterestTracker>,
     /// Subscribed assets with reference counts (for multiplexing)
-    subscribed_assets: DashMap<U256, usize>,
+    subscribed_assets: Arc<DashMap<U256, usize>>,
     /// Subscribed markets with reference counts (for multiplexing)
-    subscribed_markets: DashMap<B256, usize>,
+    subscribed_markets: Arc<DashMap<B256, usize>>,
     last_auth: Arc<RwLock<Option<Credentials>>>,
     /// Track if custom features were enabled for any market subscription
     /// (enables `best_bid_ask`, `new_market`, `market_resolved` messages)
@@ -97,8 +97,8 @@ impl SubscriptionManager {
             connection,
             active_subs: DashMap::new(),
             interest,
-            subscribed_assets: DashMap::new(),
-            subscribed_markets: DashMap::new(),
+            subscribed_assets: Arc::new(DashMap::new()),
+            subscribed_markets: Arc::new(DashMap::new()),
             last_auth: Arc::new(RwLock::new(None)),
             custom_features_enabled: AtomicBool::new(false),
         }
